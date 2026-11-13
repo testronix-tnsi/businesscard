@@ -137,25 +137,35 @@ body{background:#03182f}.shell{background:linear-gradient(160deg,#0b3155 0%,#062
   const track=document.getElementById('partnerTrack'),slider=document.getElementById('partnerSlider');
   if(!track||!slider)return;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  let last=0,hover=false,focused=false,drag=null,resumeAt=0;
+  const canHover=matchMedia('(hover: hover) and (pointer: fine)');
+  let last=0,hover=false,drag=null,resumeAt=0,position=slider.scrollLeft,syncPosition=true;
   const width=()=>track.querySelector('.partner-group').getBoundingClientRect().width;
   function wrap(){const w=width();if(w>0){if(slider.scrollLeft>=w)slider.scrollLeft-=w;else if(slider.scrollLeft<=0)slider.scrollLeft+=w;}}
-  slider.addEventListener('mouseenter',()=>hover=true);
-  slider.addEventListener('mouseleave',()=>hover=false);
-  slider.addEventListener('focusin',()=>focused=true);
-  slider.addEventListener('focusout',()=>focused=false);
+  const pauseBriefly=()=>{resumeAt=performance.now()+3000;syncPosition=true;};
+  slider.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'&&canHover.matches)hover=true;});
+  slider.addEventListener('pointerleave',()=>hover=false);
+  slider.addEventListener('focusin',pauseBriefly);
   slider.addEventListener('pointerdown',event=>{
-    resumeAt=performance.now()+3000;
+    pauseBriefly();if(event.pointerType!=='mouse')hover=false;
     if(event.pointerType!=='mouse'||event.button!==0)return;
     wrap();drag={x:event.clientX,left:slider.scrollLeft};
     slider.setPointerCapture(event.pointerId);slider.classList.add('is-dragging');
   });
   slider.addEventListener('pointermove',event=>{if(drag)slider.scrollLeft=drag.left+drag.x-event.clientX;});
-  const release=()=>{drag=null;slider.classList.remove('is-dragging');resumeAt=performance.now()+3000;};
+  const release=()=>{drag=null;slider.classList.remove('is-dragging');pauseBriefly();};
   slider.addEventListener('pointerup',release);slider.addEventListener('pointercancel',release);
-  slider.addEventListener('wheel',()=>resumeAt=performance.now()+3000,{passive:true});
-  slider.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();wrap();slider.scrollLeft+=event.key==='ArrowRight'?152:-152;resumeAt=performance.now()+3000;}});
-  function tick(time){if(last&&!reduced.matches&&!hover&&!focused&&!drag&&!document.hidden&&time>resumeAt){slider.scrollLeft+=Math.min(time-last,80)/1000*38;wrap();}last=time;requestAnimationFrame(tick);}
+  slider.addEventListener('wheel',pauseBriefly,{passive:true});
+  slider.addEventListener('touchstart',pauseBriefly,{passive:true});
+  slider.addEventListener('touchend',pauseBriefly,{passive:true});
+  slider.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();wrap();slider.scrollLeft+=event.key==='ArrowRight'?152:-152;pauseBriefly();}});
+  function tick(time){
+    if(last&&!reduced.matches&&!hover&&!drag&&!document.hidden&&time>resumeAt){
+      if(syncPosition){position=slider.scrollLeft;syncPosition=false;}
+      const w=width();
+      if(w>0){position=(position+Math.min(time-last,80)/1000*38)%w;slider.scrollLeft=position;}
+    }else syncPosition=true;
+    last=time;requestAnimationFrame(tick);
+  }
   requestAnimationFrame(tick);
 })();
 </script></body></html>
